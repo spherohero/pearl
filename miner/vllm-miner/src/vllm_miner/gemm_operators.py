@@ -212,7 +212,7 @@ def pearl_gemm_noisy(
         run_noising_A=True,  # run_noising_A
         run_noising_B=True,  # run_noising_B
         skip_reduction=False,  # skip_reduction
-        skip_denoising=False,  # skip_denoising
+        skip_denoising=config.settings.skip_denoising,  # Controllable via MINER_SKIP_DENOISING env
     )
 
     if submit_block:

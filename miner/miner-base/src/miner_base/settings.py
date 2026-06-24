@@ -13,6 +13,9 @@ class MinerSettings(BaseSettings):
     tile_size_n: int = 256
     tile_size_k: int = 128
 
+    # Denoising control
+    skip_denoising: bool = False
+
     # fmt: off
     # Hash tile pattern for the 128x256 tile
     rows_pattern: list[int] = [0, 8]
