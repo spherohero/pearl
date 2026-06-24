@@ -51,7 +51,8 @@ class NoisingKernelB {
   static constexpr uint32_t kActiveWarpGroups = 3;
   static constexpr uint32_t MaxThreadsPerBlock =
       kActiveWarpGroups * kNumThreadsPerWarpGroup;
-  static constexpr uint32_t MinBlocksPerMultiprocessor = R == 64 ? 2 : 1;
+  static constexpr uint32_t MinBlocksPerMultiprocessor =
+      (R == 64 && kBlockN == 64) ? 2 : 1;
 
   static constexpr uint32_t kNumEARxBpEBThreads =
       kNumThreadsPerWarpGroup;                                          // 1 WG
@@ -80,7 +81,7 @@ class NoisingKernelB {
   static constexpr uint32_t kNumEARxBpEBRegisters = 104;
   static constexpr uint32_t kNumBpEBRegisters = 104;
 
-  static_assert(kBlockN == 64);
+  static_assert(kBlockN == 64 || kBlockN == 128, "bN must be 64 or 128");
   static_assert(R == 64 || R == 128);
   static_assert(kBlockK == 64);  // assumed below
 

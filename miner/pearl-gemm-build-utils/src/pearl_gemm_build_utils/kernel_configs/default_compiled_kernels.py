@@ -79,9 +79,7 @@ for R in [64, 128]:
         )
     )
 
-# 128x128x64 stages=3 — Blackwell consumer; matches the noisy_gemm heuristic
-# get_pipeline_stages() which computes 3 stages fit in ~99 KB SMEM with R=128 and
-# skip_denoising=false (the canonical mining path).
+# 128x128x64 stages=3 — Blackwell consumer; close to GB10 SMEM limit.
 for R in [64, 128]:
     _matmul_kernels.append(
         MatmulKernelConfig(
@@ -90,6 +88,34 @@ for R in [64, 128]:
             tile_size_k=64,
             R=R,
             pipeline_stages=3,
+            cM=1,
+            cN=1,
+        )
+    )
+
+# Wider-N Blackwell tiles. Kept at k=64 because noising A/B is still
+# constrained on sm_120 by kernel layout assumptions.
+for R in [64, 128]:
+    _matmul_kernels.append(
+        MatmulKernelConfig(
+            tile_size_m=64,
+            tile_size_n=256,
+            tile_size_k=64,
+            R=R,
+            pipeline_stages=2,
+            cM=1,
+            cN=1,
+        )
+    )
+
+for R in [64, 128]:
+    _matmul_kernels.append(
+        MatmulKernelConfig(
+            tile_size_m=128,
+            tile_size_n=256,
+            tile_size_k=64,
+            R=R,
+            pipeline_stages=2,
             cM=1,
             cN=1,
         )
@@ -108,41 +134,28 @@ _noising_a_kernels = [
     for dtype in ["fp16", "int32"]
 ]
 
-# Noising B: 64x64, fp16/int32
+# Noising B: 64x64 and 128x64 (R=64 only for bN=128 due to SMEM), fp16/int32
 _noising_b_kernels = [
     NoisingBKernelConfig(
-        tile_size_n=64,
+        tile_size_n=bN,
         tile_size_k=64,
         R=R,
         pipeline_stages=2,
         EARxBpEB_type=dtype,
     )
     for R in [64, 128]
+    for bN in [64]
+    for dtype in ["fp16", "int32"]
+] + [
+    NoisingBKernelConfig(
+        tile_size_n=128,
+        tile_size_k=64,
+        R=64,
+        pipeline_stages=2,
+        EARxBpEB_type=dtype,
+    )
     for dtype in ["fp16", "int32"]
 ]
-
-# Path 3: 128x256x128 stages=2. INTENDED to fit GB10 after Step 1-3 SMEM
-# restructuring, but the runtime sizeof(SharedStorage) is 149504 B (146 KB) for
-# this tile — int8 smem_A(128x128x2)=32KB + smem_B(256x128x2)=64KB = 96KB of
-# mainloop alone, and the denoise union region pushes the total to 146 KB, well
-# over the sm_120/121 99 KB SMEM-per-CTA cap. cudaFuncSetAttribute(
-# MaxDynamicSharedMemorySize) -> invalid argument and TORCH_CHECK(false) at
-# launch (pearl_gemm_host.h L100). The "~98 KB" estimate in the original comment
-# was incorrect for this tile. DISABLED for the sm_120 build — the 128x128x64
-# and 64x128x64 tiles (below the cap) cover the same shapes. Re-enable only for
-# sm_90 (H100/H200) builds, or re-add at stages=1 if a large-N tile is needed.
-# for R in [64, 128]:
-#     _matmul_kernels.append(
-#         MatmulKernelConfig(
-#             tile_size_m=128,
-#             tile_size_n=256,
-#             tile_size_k=128,
-#             R=R,
-#             pipeline_stages=2,
-#             cM=1,
-#             cN=1,
-#         )
-#     )
 
 KERNEL_CONFIGS = KernelCompilationGrid(
     matmul_kernels=_matmul_kernels,
